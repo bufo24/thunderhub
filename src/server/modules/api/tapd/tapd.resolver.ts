@@ -128,6 +128,7 @@ export class TapdResolver {
       anchorTxHeightHint: t.anchorTxHeightHint,
       anchorTxChainFees: t.anchorTxChainFees?.toString(),
       transferTimestamp: t.transferTimestamp?.toString(),
+      label: t.label || null,
       inputs: (t.inputs || []).map((i: any) => ({
         anchorPoint: i.anchorPoint,
         assetId: bufToHex(i.assetId),
@@ -176,7 +177,9 @@ export class TapdResolver {
     return {
       encoded: result.encoded,
       assetId: bufToHex(result.assetId),
+      groupKey: bufToHex(result.groupKey),
       amount: result.amount?.toString(),
+      assetType: result.assetType?.toString(),
       scriptKey: bufToHex(result.scriptKey),
       internalKey: bufToHex(result.internalKey),
       taprootOutputKey: bufToHex(result.taprootOutputKey),

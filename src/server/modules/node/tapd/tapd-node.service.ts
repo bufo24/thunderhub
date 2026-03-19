@@ -43,9 +43,9 @@ export class TapdNodeService {
 
   // ── Assets ──
 
-  async listAssets(id: string) {
+  async listAssets(id: string, includeSpent = false) {
     const tapd = this.getTapd(id);
-    return tapd.taprootAssets.listAssets();
+    return tapd.taprootAssets.listAssets({ includeSpent });
   }
 
   async listBalances(
@@ -88,16 +88,19 @@ export class TapdNodeService {
     }
   ) {
     const tapd = this.getTapd(id);
+    const isProduction = this.configService.get('isProduction');
+    const defaultCourier =
+      'authmailbox+universerpc://universe.lightning.finance:10029';
+
     return tapd.taprootAssets.newAddr({
       ...(opts.groupKey
         ? { groupKey: Buffer.from(opts.groupKey, 'hex') }
         : { assetId: Buffer.from(opts.assetId || '', 'hex') }),
       amt: String(opts.amt),
       addressVersion: 'ADDR_VERSION_V2',
-      proofCourierAddr:
-        opts.proofCourierAddr ||
-        'authmailbox+universerpc://universe.lightning.finance:10029',
-      skipProofCourierConnCheck: !this.configService.get('isProduction'),
+      ...(isProduction
+        ? { proofCourierAddr: opts.proofCourierAddr || defaultCourier }
+        : {}),
     });
   }
 

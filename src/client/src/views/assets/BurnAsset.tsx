@@ -12,15 +12,26 @@ export const BurnAsset: FC = () => {
   const [amount, setAmount] = useState('');
   const [confirmed, setConfirmed] = useState(false);
 
-  const { data: balancesData } = useGetTapBalancesQuery({
+  const { data: assetBalances } = useGetTapBalancesQuery({
     variables: { groupBy: 'assetId' },
   });
 
-  const knownAssets = (balancesData?.getTapBalances?.balances || [])
+  const { data: groupBalances } = useGetTapBalancesQuery({
+    variables: { groupBy: 'groupKey' },
+  });
+
+  // Merge: prefer assetId balances, enrich with group names
+  const groupNameMap = new Map(
+    (groupBalances?.getTapBalances?.balances || [])
+      .filter(b => b.assetId)
+      .map(b => [b.assetId!, b.name || 'Unknown'])
+  );
+
+  const knownAssets = (assetBalances?.getTapBalances?.balances || [])
     .filter(b => b.assetId && b.balance && Number(b.balance) > 0)
     .map(b => ({
       assetId: b.assetId!,
-      name: b.name || 'Unknown',
+      name: b.name || groupNameMap.get(b.assetId!) || 'Unknown',
       balance: b.balance!,
     }));
 

@@ -28,9 +28,9 @@ export const ReceiveAsset: FC = () => {
 
   const isCustom = selectedKey === '__custom';
   const selectedEntry = knownAssets.find(a => a.groupKey === selectedKey);
-  const resolvedAssetId = isCustom
-    ? customAssetId
-    : selectedEntry?.assetId || '';
+  const resolvedGroupKey = isCustom ? undefined : selectedEntry?.groupKey;
+  const resolvedAssetId = isCustom ? customAssetId : undefined;
+  const canGenerate = isCustom ? !!customAssetId : !!resolvedGroupKey;
 
   const [newAddress, { loading }] = useNewTapAddressMutation({
     onError: error => toast.error(getErrorContent(error)),
@@ -44,13 +44,17 @@ export const ReceiveAsset: FC = () => {
   });
 
   const handleGenerate = () => {
-    if (!resolvedAssetId || !amount) {
+    if (!canGenerate || !amount) {
       toast.error('Asset and amount are required');
       return;
     }
     setGeneratedAddr(null);
     newAddress({
-      variables: { assetId: resolvedAssetId, amt: parseInt(amount, 10) },
+      variables: {
+        groupKey: resolvedGroupKey || null,
+        assetId: resolvedAssetId || null,
+        amt: parseInt(amount, 10),
+      },
     });
   };
 
@@ -111,7 +115,7 @@ export const ReceiveAsset: FC = () => {
           </div>
           <Button
             onClick={handleGenerate}
-            disabled={loading || !resolvedAssetId || !amount}
+            disabled={loading || !canGenerate || !amount}
             size="sm"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

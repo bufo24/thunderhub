@@ -101,7 +101,13 @@ export class TapAddress {
   assetId?: string;
 
   @Field({ nullable: true })
+  groupKey?: string;
+
+  @Field({ nullable: true })
   amount?: string;
+
+  @Field({ nullable: true })
+  assetType?: string;
 
   @Field({ nullable: true })
   scriptKey?: string;
@@ -155,6 +161,9 @@ export class TapTransfer {
 
   @Field({ nullable: true })
   transferTimestamp?: string;
+
+  @Field({ nullable: true })
+  label?: string;
 
   @Field(() => [TapTransferInput], { nullable: true })
   inputs?: TapTransferInput[];

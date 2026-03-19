@@ -8,6 +8,7 @@ export const GET_TAP_TRANSFERS = gql`
         anchorTxHeightHint
         anchorTxChainFees
         transferTimestamp
+        label
         inputs {
           anchorPoint
           assetId

@@ -13,6 +13,7 @@ export type GetTapTransfersQuery = {
       anchorTxHeightHint?: number | null;
       anchorTxChainFees?: string | null;
       transferTimestamp?: string | null;
+      label?: string | null;
       inputs?: {
         __typename?: 'TapTransferInput';
         anchorPoint?: string | null;
@@ -38,6 +39,7 @@ export const GetTapTransfersDocument = gql`
         anchorTxHeightHint
         anchorTxChainFees
         transferTimestamp
+        label
         inputs {
           anchorPoint
           assetId

@@ -51,6 +51,8 @@ services:
       - --autopilot.disable
       - --taproot-assets.allow-public-uni-proof-courier
       - --taproot-assets.universe.public-access=rw
+      - --taproot-assets.proofcourieraddr=universerpc://localhost:8443
+      - --taproot-assets.universerpccourier.skipinitdelay
     ports:
       - "8443:8443" # litd UI / gRPC proxy
       - "10009:10009" # LND gRPC
