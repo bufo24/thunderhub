@@ -4,6 +4,7 @@ import EventEmitter from 'events';
 
 export const NodeType = {
   LND: 'lnd',
+  LITD: 'litd',
 } as const;
 
 export type NodeType = (typeof NodeType)[keyof typeof NodeType];
@@ -24,6 +25,7 @@ export enum Capability {
   NETWORK_INFO = 'network_info',
   ROUTING_FEES = 'routing_fees',
   DIFFIE_HELLMAN = 'diffie_hellman',
+  TAPROOT_ASSETS = 'taproot_assets',
 }
 
 // ─── Common arg types ────────────────────────────────────────────
@@ -257,5 +259,7 @@ export interface LightningProvider {
     cert?: string;
     macaroon?: string;
     authToken?: string;
+    connectionMode?: 'grpc' | 'session' | 'lnc';
+    pairingPhrase?: string;
   }): any;
 }

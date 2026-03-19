@@ -1,0 +1,95 @@
+services:
+  bitcoind:
+    image: lightninglabs/bitcoin-core:29
+    restart: unless-stopped
+    command:
+      - -regtest
+      - -server
+      - -rpcuser=rpcuser
+      - -rpcpassword=rpcpassword
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -zmqpubrawblock=tcp://0.0.0.0:28332
+      - -zmqpubrawtx=tcp://0.0.0.0:28333
+      - -fallbackfee=0.00001
+      - -txindex=1
+    ports:
+      - "18443:18443"
+    volumes:
+      - ./data/bitcoind:/home/bitcoin/.bitcoin
+    networks:
+      - litd-net
+
+  litd:
+    image: lightninglabs/lightning-terminal:v0.16.1-alpha
+    restart: unless-stopped
+    depends_on:
+      - bitcoind
+    entrypoint: ["/scripts/litd-entrypoint.sh"]
+    command:
+      - --httpslisten=0.0.0.0:8443
+      - --tlsextradomain=litd
+      - --tlsextraip=0.0.0.0
+      - --uipassword=testpassword123!
+      - --lnd-mode=integrated
+      - --network=regtest
+      - --lnd.bitcoin.regtest
+      - --lnd.bitcoin.node=bitcoind
+      - --lnd.bitcoind.rpchost=bitcoind:18443
+      - --lnd.bitcoind.rpcuser=rpcuser
+      - --lnd.bitcoind.rpcpass=rpcpassword
+      - --lnd.bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --lnd.bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --lnd.rpclisten=0.0.0.0:10009
+      - --lnd.restlisten=0.0.0.0:8080
+      - --lnd.listen=0.0.0.0:9735
+      - --lnd.noseedbackup
+      - --lnd.alias=litd-test
+      - --lnd.debuglevel=info
+      - --lnd.tlsextradomain=litd
+      - --lnd.tlsextraip=0.0.0.0
+      - --autopilot.disable
+      - --taproot-assets.allow-public-uni-proof-courier
+      - --taproot-assets.universe.public-access=rw
+    ports:
+      - "8443:8443" # litd UI / gRPC proxy
+      - "10009:10009" # LND gRPC
+      - "8080:8080" # LND REST
+      - "9735:9735" # LND P2P
+    volumes:
+      - ./data/litd:/root/.lit
+      - ./data/lnd:/root/.lnd
+      - ./litd-entrypoint.sh:/scripts/litd-entrypoint.sh:ro
+    networks:
+      - litd-net
+    healthcheck:
+      test: ["CMD-SHELL", "lncli --network=regtest getinfo && test -f /root/.lit/regtest/super.macaroon"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  thunderhub:
+    build:
+      context: ../..
+      dockerfile: docker/litd/Dockerfile.dev
+    restart: unless-stopped
+    user: root
+    depends_on:
+      litd:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=development
+      - ACCOUNT_CONFIG_PATH=/config/thubConfig.yaml
+      - LOG_LEVEL=debug
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./thubConfig.yaml:/config/thubConfig.yaml
+      - ./data/litd:/data/litd:ro
+      - ./data/lnd:/data/lnd:ro
+    networks:
+      - litd-net
+
+networks:
+  litd-net:

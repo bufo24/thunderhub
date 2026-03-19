@@ -1,0 +1,8 @@
+masterPassword: thunderhub-$2b$12$4XqLaQJWcQdDCOiBiSHrROGMgEWvZ7yk82PwKkS2P3dYvMKBI2GMK
+accounts:
+  - name: Litd Regtest
+    type: litd
+    serverUrl: litd:8443
+    connectionMode: grpc
+    macaroonPath: /data/litd/regtest/super.macaroon
+    certificatePath: /data/litd/tls.cert
