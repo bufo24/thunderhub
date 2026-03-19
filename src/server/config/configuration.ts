@@ -92,6 +92,11 @@ type ConfigType = {
   clientConfig: ClientConfig;
 };
 
+const VALID_NODE_TYPES = ['lnd', 'litd'];
+
+const getValidNodeType = (value: string | undefined): string =>
+  value && VALID_NODE_TYPES.includes(value) ? value : 'lnd';
+
 export default (): ConfigType => {
   const isProduction = process.env.NODE_ENV === 'production';
 
@@ -132,7 +137,7 @@ export default (): ConfigType => {
     certPath: process.env.SSO_CERT_PATH || '',
     macaroonPath: process.env.SSO_MACAROON_PATH || '',
     dangerousNoSSOAuth: process.env.DANGEROUS_NO_SSO_AUTH === 'true',
-    nodeType: process.env.SSO_NODE_TYPE || 'lnd',
+    nodeType: getValidNodeType(process.env.SSO_NODE_TYPE),
   };
 
   const throttler = {

@@ -251,6 +251,10 @@ export interface LightningProvider {
     options: DiffieHellmanComputeSecretOptions
   ): Promise<any>;
 
+  // ── Subscriptions ──
+  /** Extract the raw AuthenticatedLnd handle for use by subscription service */
+  getSubscriptionConnection(connection: any): any;
+
   // ── Connection ──
   /** Create a connection object from account config */
   connect(config: {
