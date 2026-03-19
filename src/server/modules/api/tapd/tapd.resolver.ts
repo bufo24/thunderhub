@@ -10,7 +10,9 @@ import {
   TapFederationServerList,
   TapFinalizeBatchResponse,
   TapMintResponse,
+  TapFundChannelResponse,
   TapSyncResult,
+  TapUniverseAssetList,
   TapTransferList,
   TapUniverseInfo,
   TapUniverseStats,
@@ -257,6 +259,67 @@ export class TapdResolver {
 
   // ── Universe ──
 
+  @Query(() => TapUniverseAssetList)
+  async getTapUniverseAssets(@CurrentUser() { id }: UserId) {
+    const [rootsResult, assetsResult] = await Promise.all([
+      this.tapdNodeService.universeAssetRoots(id),
+      this.tapdNodeService.listAssets(id),
+    ]);
+
+    const roots = rootsResult.universeRoots || {};
+
+    // Build a map from x-coordinate (32 bytes) to full group key (33 bytes)
+    // using the owned assets which have the full tweakedGroupKey
+    const xCoordToFullKey = new Map<string, string>();
+    const assetIdToGroupKey = new Map<string, string>();
+    for (const asset of assetsResult.assets || []) {
+      const fullKey = bufToHex((asset as any).assetGroup?.tweakedGroupKey);
+      if (fullKey && fullKey.length === 66) {
+        // x-coordinate is the key without the 02/03 prefix
+        xCoordToFullKey.set(fullKey.slice(2), fullKey);
+      }
+      const aid = bufToHex((asset as any).assetGenesis?.assetId);
+      if (aid && fullKey) {
+        assetIdToGroupKey.set(aid, fullKey);
+      }
+    }
+
+    const assets: any[] = [];
+    const seen = new Set<string>();
+
+    for (const [key, root] of Object.entries(roots) as [string, any][]) {
+      const uid = root.id || {};
+      const rawGroupKey = bufToHex(uid.groupKey);
+      const keyHex = key.replace(/^(issuance|transfer)-/, '');
+
+      const totalSupply = Object.values(root.amountsByAssetId || {}).reduce(
+        (sum: number, amt: any) => sum + Number(amt || 0),
+        0
+      );
+
+      // Resolve full group key from x-coordinate
+      const fullGroupKey = rawGroupKey
+        ? xCoordToFullKey.get(rawGroupKey) || null
+        : null;
+
+      const assetId = keyHex && keyHex.length === 64 ? keyHex : null;
+
+      const dedupeKey = fullGroupKey || rawGroupKey || assetId || '';
+      if (!dedupeKey || seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
+      assets.push({
+        name: root.assetName || null,
+        assetId,
+        groupKey: fullGroupKey,
+        proofType: uid.proofType || null,
+        totalSupply: String(totalSupply),
+      });
+    }
+
+    return { assets };
+  }
+
   @Query(() => TapUniverseInfo)
   async getTapUniverseInfo(@CurrentUser() { id }: UserId) {
     return this.tapdNodeService.universeInfo(id);
@@ -269,8 +332,12 @@ export class TapdResolver {
 
   @Query(() => TapFederationServerList)
   async getTapFederationServers(@CurrentUser() { id }: UserId) {
+    const account = this.tapdNodeService.getAccount(id);
     const result = await this.tapdNodeService.listFederationServers(id);
-    return { servers: result.servers || [] };
+    return {
+      nodeAddress: account?.socket || null,
+      servers: result.servers || [],
+    };
   }
 
   @Mutation(() => Boolean)
@@ -301,5 +368,32 @@ export class TapdResolver {
       (u: any) => u.id?.assetIdStr || bufToHex(u.id?.assetId) || 'unknown'
     );
     return { syncedUniverses };
+  }
+
+  // ── Asset Channels ──
+
+  @Mutation(() => TapFundChannelResponse)
+  async fundTapAssetChannel(
+    @CurrentUser() { id }: UserId,
+    @Args('peerPubkey') peerPubkey: string,
+    @Args('assetAmount', { type: () => Int }) assetAmount: number,
+    @Args('groupKey', { nullable: true }) groupKey?: string,
+    @Args('assetId', { nullable: true }) assetId?: string,
+    @Args('feeRateSatPerVbyte', { type: () => Int, nullable: true })
+    feeRateSatPerVbyte?: number,
+    @Args('pushSat', { type: () => Int, nullable: true }) pushSat?: number
+  ) {
+    const result = await this.tapdNodeService.fundAssetChannel(id, {
+      peerPubkey,
+      assetAmount,
+      groupKey: groupKey || undefined,
+      assetId: assetId || undefined,
+      feeRateSatPerVbyte: feeRateSatPerVbyte || undefined,
+      pushSat: pushSat || undefined,
+    });
+    return {
+      txid: result.txid,
+      outputIndex: result.outputIndex,
+    };
   }
 }

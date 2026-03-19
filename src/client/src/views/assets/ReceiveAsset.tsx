@@ -5,11 +5,18 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNewTapAddressMutation } from '../../graphql/mutations/__generated__/newTapAddress.generated';
 import { useGetTapBalancesQuery } from '../../graphql/queries/__generated__/getTapBalances.generated';
+import { useGetTapUniverseAssetsQuery } from '../../graphql/queries/__generated__/getTapUniverseAssets.generated';
 import { getErrorContent } from '../../utils/error';
+
+type GroupEntry = {
+  groupKey: string;
+  name: string;
+  source: 'owned' | 'universe';
+};
 
 export const ReceiveAsset: FC = () => {
   const [selectedKey, setSelectedKey] = useState('');
-  const [customAssetId, setCustomAssetId] = useState('');
+  const [customGroupKey, setCustomGroupKey] = useState('');
   const [amount, setAmount] = useState('');
   const [generatedAddr, setGeneratedAddr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -18,19 +25,43 @@ export const ReceiveAsset: FC = () => {
     variables: { groupBy: 'groupKey' },
   });
 
-  const knownAssets = (balancesData?.getTapBalances?.balances || [])
+  const { data: universeData } = useGetTapUniverseAssetsQuery();
+
+  // Merge owned assets and universe assets, deduplicate by group key
+  const ownedGroups = (balancesData?.getTapBalances?.balances || [])
     .filter(b => b.groupKey)
-    .map(b => ({
-      groupKey: b.groupKey!,
-      assetId: b.assetId || '',
-      name: b.name || 'Unknown',
-    }));
+    .map(
+      (b): GroupEntry => ({
+        groupKey: b.groupKey!,
+        name: b.name || 'Unknown',
+        source: 'owned',
+      })
+    );
+
+  const universeGroups = (universeData?.getTapUniverseAssets?.assets || [])
+    .filter(a => a.groupKey)
+    .map(
+      (a): GroupEntry => ({
+        groupKey: a.groupKey!,
+        name: a.name || 'Unknown',
+        source: 'universe',
+      })
+    );
+
+  const seen = new Set<string>();
+  const allGroups: GroupEntry[] = [];
+  for (const g of [...ownedGroups, ...universeGroups]) {
+    if (!seen.has(g.groupKey)) {
+      seen.add(g.groupKey);
+      allGroups.push(g);
+    }
+  }
 
   const isCustom = selectedKey === '__custom';
-  const selectedEntry = knownAssets.find(a => a.groupKey === selectedKey);
-  const resolvedGroupKey = isCustom ? undefined : selectedEntry?.groupKey;
-  const resolvedAssetId = isCustom ? customAssetId : undefined;
-  const canGenerate = isCustom ? !!customAssetId : !!resolvedGroupKey;
+  const resolvedGroupKey = isCustom
+    ? customGroupKey
+    : allGroups.find(g => g.groupKey === selectedKey)?.groupKey;
+  const canGenerate = !!resolvedGroupKey;
 
   const [newAddress, { loading }] = useNewTapAddressMutation({
     onError: error => toast.error(getErrorContent(error)),
@@ -44,15 +75,14 @@ export const ReceiveAsset: FC = () => {
   });
 
   const handleGenerate = () => {
-    if (!canGenerate || !amount) {
-      toast.error('Asset and amount are required');
+    if (!resolvedGroupKey || !amount) {
+      toast.error('Group key and amount are required');
       return;
     }
     setGeneratedAddr(null);
     newAddress({
       variables: {
-        groupKey: resolvedGroupKey || null,
-        assetId: resolvedAssetId || null,
+        groupKey: resolvedGroupKey,
         amt: parseInt(amount, 10),
       },
     });
@@ -73,7 +103,7 @@ export const ReceiveAsset: FC = () => {
         <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">
-              Asset
+              Group Key
             </label>
             <select
               value={selectedKey}
@@ -83,20 +113,21 @@ export const ReceiveAsset: FC = () => {
               }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="">Select an asset...</option>
-              {knownAssets.map(a => (
-                <option key={a.groupKey} value={a.groupKey}>
-                  {a.name} (group: {a.groupKey.slice(0, 16)}...)
+              <option value="">Select a group...</option>
+              {allGroups.map(g => (
+                <option key={g.groupKey} value={g.groupKey}>
+                  {g.name} ({g.groupKey.slice(0, 16)}...)
+                  {g.source === 'universe' ? ' [universe]' : ''}
                 </option>
               ))}
-              <option value="__custom">Enter ID manually...</option>
+              <option value="__custom">Enter group key manually...</option>
             </select>
             {isCustom && (
               <input
                 type="text"
-                value={customAssetId}
-                onChange={e => setCustomAssetId(e.target.value)}
-                placeholder="Asset ID (hex)"
+                value={customGroupKey}
+                onChange={e => setCustomGroupKey(e.target.value)}
+                placeholder="Group key (hex)"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono mt-2"
               />
             )}

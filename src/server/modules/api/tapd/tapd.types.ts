@@ -222,6 +222,30 @@ export class TapUniverseStats {
 }
 
 @ObjectType()
+export class TapUniverseAsset {
+  @Field({ nullable: true })
+  name?: string;
+
+  @Field({ nullable: true })
+  assetId?: string;
+
+  @Field({ nullable: true })
+  groupKey?: string;
+
+  @Field({ nullable: true })
+  proofType?: string;
+
+  @Field({ nullable: true })
+  totalSupply?: string;
+}
+
+@ObjectType()
+export class TapUniverseAssetList {
+  @Field(() => [TapUniverseAsset])
+  assets: TapUniverseAsset[];
+}
+
+@ObjectType()
 export class TapFederationServer {
   @Field()
   host: string;
@@ -232,6 +256,9 @@ export class TapFederationServer {
 
 @ObjectType()
 export class TapFederationServerList {
+  @Field({ nullable: true })
+  nodeAddress?: string;
+
   @Field(() => [TapFederationServer])
   servers: TapFederationServer[];
 }
@@ -240,4 +267,13 @@ export class TapFederationServerList {
 export class TapSyncResult {
   @Field(() => [String])
   syncedUniverses: string[];
+}
+
+@ObjectType()
+export class TapFundChannelResponse {
+  @Field({ nullable: true })
+  txid?: string;
+
+  @Field({ nullable: true })
+  outputIndex?: number;
 }

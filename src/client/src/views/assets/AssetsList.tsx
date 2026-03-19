@@ -1,6 +1,6 @@
 import { FC, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Loader2, Info } from 'lucide-react';
+import { Loader2, Info, Copy, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useGetTapAssetsQuery } from '../../graphql/queries/__generated__/getTapAssets.generated';
@@ -9,6 +9,35 @@ import { getErrorContent } from '../../utils/error';
 import { cn } from '../../lib/utils';
 
 type GroupBy = 'groupKey' | 'assetId';
+
+const CopyableKey: FC<{ label: string; value: string }> = ({
+  label,
+  value,
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    toast.success(`${label} copied`);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-xs text-muted-foreground font-mono truncate max-w-[250px]">
+        {value}
+      </span>
+      <button
+        onClick={handleCopy}
+        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        title={`Copy ${label}`}
+      >
+        {copied ? <Check size={12} /> : <Copy size={12} />}
+      </button>
+    </div>
+  );
+};
 
 export const AssetsList: FC = () => {
   const [groupBy, setGroupBy] = useState<GroupBy>('groupKey');
@@ -76,34 +105,43 @@ export const AssetsList: FC = () => {
       </div>
 
       <div className="grid gap-3">
-        {balances.map((entry, i) => (
-          <Card key={`${entry.assetId || entry.groupKey}-${i}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-1">
-                  <span className="font-semibold">
-                    {entry.name || 'Unknown'}
-                  </span>
-                  <span className="text-xs text-muted-foreground font-mono truncate max-w-[300px]">
-                    {groupBy === 'groupKey'
-                      ? entry.groupKey || entry.assetId
-                      : entry.assetId}
-                  </span>
-                  {groupBy === 'groupKey' && entry.groupKey && (
-                    <span className="text-[10px] text-muted-foreground/60">
-                      Group
+        {balances.map((entry, i) => {
+          const keyValue =
+            groupBy === 'groupKey'
+              ? entry.groupKey || entry.assetId
+              : entry.assetId;
+          const keyLabel = groupBy === 'groupKey' ? 'Group key' : 'Asset ID';
+
+          return (
+            <Card key={`${keyValue}-${i}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold">
+                      {entry.name || 'Unknown'}
                     </span>
-                  )}
+                    {keyValue && (
+                      <CopyableKey label={keyLabel} value={keyValue} />
+                    )}
+                    {groupBy === 'groupKey' && entry.groupKey && (
+                      <span className="text-[10px] text-muted-foreground/60">
+                        Group
+                      </span>
+                    )}
+                    {groupBy === 'groupKey' && entry.assetId && (
+                      <CopyableKey label="Asset ID" value={entry.assetId} />
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-lg font-semibold">
+                      {entry.balance || '0'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-lg font-semibold">
-                    {entry.balance || '0'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

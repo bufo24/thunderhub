@@ -5,15 +5,23 @@ import { BurnAsset } from './BurnAsset';
 import { SendAsset } from './SendAsset';
 import { ReceiveAsset } from './ReceiveAsset';
 import { AssetTransfers } from './AssetTransfers';
+import { FundAssetChannel } from './FundAssetChannel';
 import { UniverseManager } from './UniverseManager';
 import { cn } from '../../lib/utils';
 
-type Tab = 'assets' | 'send' | 'receive' | 'transfers' | 'advanced';
+type Tab =
+  | 'assets'
+  | 'send'
+  | 'receive'
+  | 'channels'
+  | 'transfers'
+  | 'advanced';
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'assets', label: 'Assets' },
   { id: 'send', label: 'Send' },
   { id: 'receive', label: 'Receive' },
+  { id: 'channels', label: 'Channels' },
   { id: 'transfers', label: 'Transfers' },
   { id: 'advanced', label: 'Advanced' },
 ];
@@ -27,13 +35,13 @@ export const AssetsView = () => {
         <h2 className="text-lg font-semibold">Taproot Assets</h2>
       </div>
 
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 border-b border-border overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+              'px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap',
               activeTab === tab.id
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -47,6 +55,7 @@ export const AssetsView = () => {
       {activeTab === 'assets' && <AssetsList />}
       {activeTab === 'send' && <SendAsset />}
       {activeTab === 'receive' && <ReceiveAsset />}
+      {activeTab === 'channels' && <FundAssetChannel />}
       {activeTab === 'transfers' && <AssetTransfers />}
       {activeTab === 'advanced' && (
         <div className="flex flex-col gap-6">

@@ -56,6 +56,9 @@ export class LitdService implements LightningProvider, TaprootAssetsProvider {
         cert: config.cert || '',
       });
 
+      // Enable universe sync insert for both proof types (fire and forget)
+      this.enableUniverseSyncInsert(tapd).catch(() => {});
+
       return { lnd, tapd, mode };
     }
 
@@ -63,6 +66,23 @@ export class LitdService implements LightningProvider, TaprootAssetsProvider {
     throw new Error(
       `Connection mode "${mode}" is not yet supported. Only "grpc" is available.`
     );
+  }
+
+  private async enableUniverseSyncInsert(tapd: TapdRpcApis) {
+    await tapd.universe.setFederationSyncConfig({
+      globalSyncConfigs: [
+        {
+          proofType: 'PROOF_TYPE_ISSUANCE',
+          allowSyncInsert: true,
+          allowSyncExport: true,
+        },
+        {
+          proofType: 'PROOF_TYPE_TRANSFER',
+          allowSyncInsert: true,
+          allowSyncExport: true,
+        },
+      ],
+    });
   }
 
   getTapd(connection: LitdConnection): TapdRpcApis {

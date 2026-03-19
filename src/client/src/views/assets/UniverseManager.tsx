@@ -1,6 +1,14 @@
 import { FC, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Loader2, Trash2, RefreshCw, Plus, Globe } from 'lucide-react';
+import {
+  Loader2,
+  Trash2,
+  RefreshCw,
+  Plus,
+  Globe,
+  Copy,
+  Check,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useGetTapFederationServersQuery } from '../../graphql/queries/__generated__/getTapFederationServers.generated';
@@ -13,6 +21,7 @@ import { getErrorContent } from '../../utils/error';
 
 export const UniverseManager: FC = () => {
   const [newHost, setNewHost] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const { data, loading, refetch } = useGetTapFederationServersQuery({
     onError: error => toast.error(getErrorContent(error)),
@@ -44,11 +53,50 @@ export const UniverseManager: FC = () => {
     },
   });
 
+  const nodeAddress = data?.getTapFederationServers?.nodeAddress;
   const servers = data?.getTapFederationServers?.servers || [];
+
+  const handleCopyNodeAddress = () => {
+    if (nodeAddress) {
+      navigator.clipboard.writeText(nodeAddress);
+      setCopied(true);
+      toast.success('Universe address copied');
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4">
       <h3 className="text-sm font-semibold">Universe Federation Servers</h3>
+
+      {nodeAddress && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">
+                Your universe server address
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-mono flex-1 truncate">
+                  {nodeAddress}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={handleCopyNodeAddress}
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </Button>
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                Share this with others so they can sync your universe and
+                receive your assets
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-4">

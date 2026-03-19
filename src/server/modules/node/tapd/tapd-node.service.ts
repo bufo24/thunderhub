@@ -14,6 +14,10 @@ export class TapdNodeService {
     private configService: ConfigService
   ) {}
 
+  getAccount(id: string) {
+    return this.accountsService.getAccount(id);
+  }
+
   private getTapd(id: string): TapdRpcApis {
     const account = this.accountsService.getAccount(id);
     if (!account) throw new Error('Node account not found');
@@ -197,6 +201,23 @@ export class TapdNodeService {
     return tapd.universe.assetRoots();
   }
 
+  async universeAssetLeaves(id: string, groupKey: string) {
+    const tapd = this.getTapd(id);
+
+    // Try with groupKeyStr (hex string) which avoids Buffer encoding issues.
+    // The universe root stores just the x-coordinate (32 bytes).
+    // Try with 02 prefix first, then 03 if no results.
+    const prefixes = groupKey.length === 64 ? ['02', '03'] : [''];
+    for (const prefix of prefixes) {
+      const result = await tapd.universe.assetLeaves({
+        groupKeyStr: prefix + groupKey,
+      });
+      if (result.leaves?.length) return result;
+    }
+
+    return { leaves: [] };
+  }
+
   async queryAssetStats(id: string) {
     const tapd = this.getTapd(id);
     return tapd.universe.queryAssetStats();
@@ -209,9 +230,29 @@ export class TapdNodeService {
 
   async addFederationServer(id: string, host: string) {
     const tapd = this.getTapd(id);
-    return tapd.universe.addFederationServer({
+
+    // Add the server
+    const result = await tapd.universe.addFederationServer({
       servers: [{ host }],
     });
+
+    // Enable sync insert for both issuance and transfer proofs
+    await tapd.universe.setFederationSyncConfig({
+      globalSyncConfigs: [
+        {
+          proofType: 'PROOF_TYPE_ISSUANCE',
+          allowSyncInsert: true,
+          allowSyncExport: true,
+        },
+        {
+          proofType: 'PROOF_TYPE_TRANSFER',
+          allowSyncInsert: true,
+          allowSyncExport: true,
+        },
+      ],
+    });
+
+    return result;
   }
 
   async deleteFederationServer(id: string, host: string) {
@@ -225,6 +266,33 @@ export class TapdNodeService {
     const tapd = this.getTapd(id);
     return tapd.universe.syncUniverse({
       universeHost: host,
+    });
+  }
+
+  // ── Asset Channels ──
+
+  async fundAssetChannel(
+    id: string,
+    opts: {
+      peerPubkey: string;
+      assetAmount: number;
+      groupKey?: string;
+      assetId?: string;
+      feeRateSatPerVbyte?: number;
+      pushSat?: number;
+    }
+  ) {
+    const tapd = this.getTapd(id);
+    return tapd.channels.fundChannel({
+      peerPubkey: Buffer.from(opts.peerPubkey, 'hex'),
+      assetAmount: String(opts.assetAmount),
+      ...(opts.groupKey
+        ? { groupKey: Buffer.from(opts.groupKey, 'hex') }
+        : { assetId: Buffer.from(opts.assetId || '', 'hex') }),
+      ...(opts.feeRateSatPerVbyte
+        ? { feeRateSatPerVbyte: opts.feeRateSatPerVbyte }
+        : {}),
+      ...(opts.pushSat ? { pushSat: String(opts.pushSat) } : {}),
     });
   }
 }

@@ -1,6 +1,6 @@
 # Litd + ThunderHub Docker Setup
 
-Local development environment with Bitcoin Core (regtest), Lightning Terminal (litd), and ThunderHub.
+Two-node local development environment with Bitcoin Core (regtest), two Lightning Terminal (litd) nodes (Alice & Bob), and two ThunderHub instances.
 
 ## Quick Start
 
@@ -9,51 +9,86 @@ cd docker/litd
 docker compose up --build
 ```
 
-Wait for litd to finish initializing (watch logs for `"Server is starting"`), then open:
+Wait for both litd nodes to initialize, then open:
 
-- **ThunderHub**: http://localhost:3000
-- **Litd UI**: https://localhost:8443 (password: `testpassword123!`)
+- **ThunderHub Alice**: http://localhost:3000
+- **ThunderHub Bob**: http://localhost:3001
+- **Litd Alice UI**: https://localhost:8443 (password: `testpassword123!`)
+- **Litd Bob UI**: https://localhost:8444 (password: `testpassword123!`)
 
-Log in to ThunderHub with password: `thunderhub`
+Login password for both ThunderHub instances: `thunderhub`
 
 ## Services
 
-| Service      | Port  | Description                          |
-|-------------|-------|--------------------------------------|
-| bitcoind    | 18443 | Bitcoin Core RPC (regtest)           |
-| litd        | 10009 | LND gRPC (via litd)                 |
-| litd        | 8080  | LND REST                            |
-| litd        | 8443  | Lightning Terminal UI (HTTPS)        |
-| litd        | 9735  | LND P2P                             |
-| thunderhub  | 3000  | ThunderHub web UI                    |
+| Service          | Port  | Description                          |
+|-----------------|-------|--------------------------------------|
+| bitcoind        | 18443 | Bitcoin Core RPC (regtest)           |
+| litd-alice      | 8443  | Alice's litd UI / gRPC proxy        |
+| litd-alice      | 10009 | Alice's LND gRPC                    |
+| litd-alice      | 9735  | Alice's LND P2P                     |
+| litd-bob        | 8444  | Bob's litd UI / gRPC proxy          |
+| litd-bob        | 10010 | Bob's LND gRPC                      |
+| litd-bob        | 9736  | Bob's LND P2P                       |
+| thunderhub-alice| 3000  | Alice's ThunderHub                   |
+| thunderhub-bob  | 3001  | Bob's ThunderHub                     |
 
-## Generate Regtest Blocks
-
-To fund the wallet and make the node usable:
+## Fund Wallets and Mine Blocks
 
 ```bash
-# Generate initial blocks (need 100+ for coinbase maturity)
-docker compose exec bitcoind bitcoin-cli -regtest -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 110 $(docker compose exec litd lncli --network=regtest newaddress p2wkh | jq -r '.address')
+# Fund Alice
+docker compose exec bitcoind bitcoin-cli -regtest -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 110 $(docker compose exec litd-alice lncli --network=regtest newaddress p2wkh | jq -r '.address')
 
-# Generate more blocks later
-docker compose exec bitcoind bitcoin-cli -regtest -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 6 $(docker compose exec litd lncli --network=regtest newaddress p2wkh | jq -r '.address')
+# Fund Bob
+docker compose exec bitcoind bitcoin-cli -regtest -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 6 $(docker compose exec litd-bob lncli --network=regtest newaddress p2wkh | jq -r '.address')
+
+# Mine more blocks
+docker compose exec bitcoind bitcoin-cli -regtest -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 6 $(docker compose exec litd-alice lncli --network=regtest newaddress p2wkh | jq -r '.address')
 ```
 
-## Configuration
+## Connect Peers and Open Channel
 
-The ThunderHub account config is in `thubConfig.yaml`. It connects to litd using:
-- **Type**: `litd` (uses the litd provider)
-- **Connection mode**: `grpc` (socket + super macaroon)
-- **Macaroon**: litd's super macaroon at `/data/litd/regtest/lit.macaroon`
-- **Certificate**: litd's TLS cert at `/data/litd/tls.cert`
+```bash
+# Get Bob's pubkey and address
+BOB_PUBKEY=$(docker compose exec litd-bob lncli --network=regtest getinfo | jq -r '.identity_pubkey')
 
-## Volumes
+# Connect Alice to Bob
+docker compose exec litd-alice lncli --network=regtest connect ${BOB_PUBKEY}@litd-bob:9735
 
-- `bitcoind-data` — Bitcoin Core regtest chain data
-- `litd-data` — litd data (LND + tapd), shared read-only with thunderhub for macaroon/cert access
+# Open channel from Alice to Bob (1M sats)
+docker compose exec litd-alice lncli --network=regtest openchannel --node_key=${BOB_PUBKEY} --local_amt=1000000
+
+# Mine blocks to confirm
+docker compose exec bitcoind bitcoin-cli -regtest -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 6 $(docker compose exec litd-alice lncli --network=regtest newaddress p2wkh | jq -r '.address')
+```
+
+## Taproot Asset Workflow
+
+```bash
+# Alice mints an asset
+docker compose exec litd-alice tapcli --tlscertpath=/root/.lit/tls.cert --macaroonpath=/root/.lit/regtest/super.macaroon --rpcserver=localhost:8443 assets mint --type normal --name my-coin --supply 1000 --new_grouped_asset
+
+# Finalize the mint batch
+docker compose exec litd-alice tapcli --tlscertpath=/root/.lit/tls.cert --macaroonpath=/root/.lit/regtest/super.macaroon --rpcserver=localhost:8443 assets mint finalize
+
+# Mine blocks to confirm
+docker compose exec bitcoind bitcoin-cli -regtest -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 6 $(docker compose exec litd-alice lncli --network=regtest newaddress p2wkh | jq -r '.address')
+```
+
+## Add Universe Federation (for asset transfers between nodes)
+
+For Bob to receive assets from Alice, both nodes should federate their universes:
+
+```bash
+# Add Alice's universe to Bob's federation
+docker compose exec litd-bob tapcli --tlscertpath=/root/.lit/tls.cert --macaroonpath=/root/.lit/regtest/super.macaroon --rpcserver=localhost:8443 universe federation add --universe_host=litd-alice:8443
+
+# Add Bob's universe to Alice's federation
+docker compose exec litd-alice tapcli --tlscertpath=/root/.lit/tls.cert --macaroonpath=/root/.lit/regtest/super.macaroon --rpcserver=localhost:8443 universe federation add --universe_host=litd-bob:8443
+```
 
 ## Cleanup
 
 ```bash
-docker compose down -v  # removes containers and volumes
+docker compose down       # stop containers, keep data
+rm -rf data/              # remove all persistent data
 ```

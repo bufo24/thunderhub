@@ -7,6 +7,7 @@ export type GetTapFederationServersQuery = {
   __typename?: 'Query';
   getTapFederationServers: {
     __typename?: 'TapFederationServerList';
+    nodeAddress?: string | null;
     servers: {
       __typename?: 'TapFederationServer';
       host: string;
@@ -18,6 +19,7 @@ export type GetTapFederationServersQuery = {
 export const GetTapFederationServersDocument = gql`
   query GetTapFederationServers {
     getTapFederationServers {
+      nodeAddress
       servers {
         host
         id
