@@ -4,6 +4,7 @@ import EventEmitter from 'events';
 
 export const NodeType = {
   LND: 'lnd',
+  LITD: 'litd',
 } as const;
 
 export type NodeType = (typeof NodeType)[keyof typeof NodeType];

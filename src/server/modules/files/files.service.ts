@@ -251,6 +251,7 @@ export class FilesService {
       serverUrl,
       network,
       lndDir,
+      litDir,
       macaroonPath,
       macaroon: macaroonValue,
       password,
@@ -261,13 +262,20 @@ export class FilesService {
 
     const nodeType = (accountType as NodeType) || NodeType.LND;
     const isLnd = nodeType === NodeType.LND;
+    const isLitd = nodeType === NodeType.LITD;
+    const needsMacaroon = isLnd || isLitd;
 
     const missingFields: string[] = [];
     if (!name) missingFields.push('name');
     if (!serverUrl) missingFields.push('server url');
 
-    // Only require macaroon for LND accounts
-    if (isLnd && !lndDir && !macaroonPath && !macaroonValue) {
+    if (
+      needsMacaroon &&
+      !lndDir &&
+      !litDir &&
+      !macaroonPath &&
+      !macaroonValue
+    ) {
       missingFields.push('macaroon');
     }
 
@@ -294,8 +302,14 @@ export class FilesService {
     let cert: string | null = null;
     let macaroon: string | null = null;
 
-    if (isLnd) {
+    if (needsMacaroon) {
       cert = this.getCertificate(resolvedAccount);
+
+      // For litd, also try litDir for cert
+      if (!cert && isLitd && litDir) {
+        cert = this.readFile(path.join(litDir, 'tls.cert'));
+      }
+
       if (!cert) {
         this.logger.warn(
           `No certificate for account ${name}. Make sure you don't need it to connect.`
@@ -303,10 +317,15 @@ export class FilesService {
       }
 
       macaroon = this.getMacaroon(resolvedAccount, defaultNetwork);
+
+      // For litd, also try litDir for the super macaroon
+      if (!macaroon && isLitd && litDir) {
+        const litNetwork = network || defaultNetwork;
+        macaroon = this.readFile(path.join(litDir, litNetwork, 'lit.macaroon'));
+      }
+
       if (!macaroon) {
-        this.logger.error(
-          `Account ${name} has neither lnd directory, macaroon nor macaroon path specified.`
-        );
+        this.logger.error(`Account ${name} has no macaroon configured.`);
         return null;
       }
     }
