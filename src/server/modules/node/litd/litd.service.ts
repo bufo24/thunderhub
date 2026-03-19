@@ -60,6 +60,10 @@ export class LitdService implements LightningProvider {
     return { lnd, mode: 'grpc' };
   }
 
+  getSubscriptionConnection(connection: LitdConnection) {
+    return connection.lnd;
+  }
+
   private getLnd(connection: LitdConnection) {
     return connection.lnd;
   }
